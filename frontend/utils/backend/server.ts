@@ -1,4 +1,3 @@
-import { createClient } from '../appwrite/client'
 import { request } from './requests'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,6 +25,7 @@ class Server {
     private ws: WebSocket | null = null
     private handlers: Map<string, ((data: any) => void)[]> = new Map()
     private _connected: boolean = false
+    private _jwt: string = ''
 
     // ── .socket shim ─────────────────────────────────────────────────────────
     // PlayApp.ts uses server.socket.on / server.socket.off / server.socket.emit
@@ -47,7 +47,8 @@ class Server {
         shareId: string,
         access_token: string,
     ): Promise<ConnectionResponse> {
-        // Convert http(s):// → ws(s)://  and append the auth token
+        this._jwt = access_token
+
         const wsUrl =
             BACKEND_URL.replace(/^http/, 'ws').replace(/\/+$/, '') +
             `/ws?token=${encodeURIComponent(access_token)}`
@@ -55,9 +56,13 @@ class Server {
         this.ws = new WebSocket(wsUrl)
 
         return new Promise((resolve) => {
+            let settled = false
+            const settle = (result: ConnectionResponse) => {
+                if (!settled) { settled = true; resolve(result) }
+            }
+
             this.ws!.onopen = () => {
                 this._connected = true
-                // Mirror: this.socket.emit('joinRealm', { realmId, shareId })
                 this.emit('joinRealm', { realmId, shareId })
             }
 
@@ -66,16 +71,12 @@ class Server {
                     const msg: WSMessage = JSON.parse(event.data as string)
                     this.dispatch(msg.event, msg.payload)
 
-                    // Resolve the connect() promise once we know the join outcome
                     if (msg.event === 'joinedRealm') {
-                        resolve({ success: true, errorMessage: '' })
+                        settle({ success: true, errorMessage: '' })
                     }
                     if (msg.event === 'failedToJoinRoom') {
                         const payload = msg.payload as { reason?: string }
-                        resolve({
-                            success: false,
-                            errorMessage: payload?.reason ?? 'Failed to join realm',
-                        })
+                        settle({ success: false, errorMessage: payload?.reason ?? 'Failed to join realm' })
                     }
                 } catch (e) {
                     console.error('[WS] Failed to parse message:', e)
@@ -83,16 +84,13 @@ class Server {
             }
 
             this.ws!.onerror = () => {
-                resolve({
-                    success: false,
-                    errorMessage: 'Could not connect to server.',
-                })
+                settle({ success: false, errorMessage: 'Could not connect to server.' })
             }
 
             this.ws!.onclose = () => {
                 this._connected = false
-                // Fire the 'disconnect' event — PlayApp listens for this
                 this.dispatch('disconnect', null)
+                settle({ success: false, errorMessage: 'Connection closed.' })
             }
         })
     }
@@ -130,16 +128,9 @@ class Server {
     }
 
     // ── REST helpers ──────────────────────────────────────────────────────────
-    // Path changed: /getPlayersInRoom → /api/v1/players-in-room
     public async getPlayersInRoom(roomIndex: number) {
-        const { account } = createClient()
-        let session;
-        try {
-            session = await account.createJWT()
-        } catch {
-            return { data: null, error: { message: 'No session provided' } }
-        }
-        return request('/api/v1/players-in-room', { roomIndex }, session.jwt)
+        if (!this._jwt) return { data: null, error: { message: 'No session' } }
+        return request('/api/v1/players-in-room', { roomIndex }, this._jwt)
     }
 
     // ── internal dispatcher ───────────────────────────────────────────────────

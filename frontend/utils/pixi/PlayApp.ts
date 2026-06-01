@@ -120,7 +120,8 @@ export class PlayApp extends App {
             return
         }
 
-        for (const player of data.players) {
+        const players: any[] = data?.players ?? data?.data?.players ?? []
+        for (const player of players) {
             if (player.uid === this.uid) continue
             this.updatePlayer(player.uid, player)
         }

@@ -53,9 +53,10 @@ func (h *Handler) ServeWS(c *gin.Context) {
 		return
 	}
 
-	// ── Validate with Supabase ────────────────────────────────────────────
+	// ── Validate JWT with Appwrite ────────────────────────────────────────
 	user, err := utils.ValidateToken(token)
 	if err != nil {
+		log.Error().Err(err).Str("token_prefix", token[:min(len(token), 20)]).Msg("JWT validation failed")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 		return
 	}

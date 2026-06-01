@@ -24,13 +24,21 @@ export default async function App() {
     ).then(res => ({ data: res.documents, error: null })).catch(e => ({ data: null, error: e }))
 
     if (ownedRealms) {
-        realms.push(...ownedRealms)
+        realms.push(...ownedRealms.map((r: any) => ({
+            id: String(r.$id),
+            name: String(r.name),
+            share_id: String(r.share_id ?? ''),
+        })))
     }
 
     const { data: visitedRealms } = await getVisitedRealms()
     if (visitedRealms) {
-        const tagged = visitedRealms.map((realm: any) => ({ ...realm, shared: true }))
-        realms.push(...tagged)
+        realms.push(...visitedRealms.map((r: any) => ({
+            id: String(r.$id),
+            name: String(r.name),
+            share_id: String(r.share_id ?? ''),
+            shared: true,
+        })))
     }
 
     const errorMessage = error?.message || ''

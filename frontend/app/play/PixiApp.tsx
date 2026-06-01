@@ -23,33 +23,43 @@ const PixiApp:React.FC<PixiAppProps> = ({ className, mapData, username, access_t
     const { setModal, setLoadingText, setFailedConnectionMessage, setErrorModal } = useModal()
 
     useEffect(() => {
+        let mounted = true
+
         const mount = async () => {
-            const app = new PlayApp(uid, realmId, mapData, username, initialSkin)
-            appRef.current = app
             setModal('Loading')
             setLoadingText('Connecting to server...')
+
             const { success, errorMessage } = await server.connect(realmId, uid, shareId, access_token)
+
+            if (!mounted) return  // cleanup ran while we were connecting
+
             if (!success) {
                 setErrorModal('Failed To Connect')
                 setFailedConnectionMessage(errorMessage)
                 return
             }
 
+            const app = new PlayApp(uid, realmId, mapData, username, initialSkin)
+            appRef.current = app
+
             setLoadingText('Loading game...')
             await app.init()
+
+            if (!mounted) return  // cleanup ran while we were loading
+
             setModal('None')
-            const pixiApp = app.getApp()
-            
-            document.getElementById('app-container')!.appendChild(pixiApp.canvas)
+            document.getElementById('app-container')!.appendChild(app.getApp().canvas)
         }
 
-        if (!appRef.current) {
-            mount()
-        }
-        
+        mount()
+
         return () => {
+            mounted = false
             if (appRef.current) {
                 appRef.current.destroy()
+                appRef.current = null
+            } else {
+                server.disconnect()
             }
         }
     }, [])

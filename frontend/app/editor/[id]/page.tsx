@@ -29,7 +29,7 @@ export default async function RealmEditor({ params }: { params: { id: string } }
         return <NotFound />
     }
 
-    const map_data = data.map_data
+    const map_data = typeof data.map_data === 'string' ? JSON.parse(data.map_data) : data.map_data
 
     return (
         <div>

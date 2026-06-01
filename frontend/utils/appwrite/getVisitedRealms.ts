@@ -1,6 +1,7 @@
 'use server'
 import 'server-only'
 import { createSessionClient } from './server'
+import { Query } from 'node-appwrite'
 
 export async function getVisitedRealms() {
     const { account, databases } = await createSessionClient()
@@ -30,7 +31,7 @@ export async function getVisitedRealms() {
             const data = await databases.listDocuments(
                 process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
                 process.env.NEXT_PUBLIC_APPWRITE_REALMS_COLLECTION_ID!,
-                [`equal("share_id", ["${shareId}"])`]
+                [Query.equal('share_id', shareId)]
             )
             
             if (data.documents.length > 0) {

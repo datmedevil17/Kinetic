@@ -20,7 +20,9 @@ export async function request(url: string, params: Record<string, any> = {}, acc
             return { data: null, error }
         }
 
-        const data = await response.json()
+        const json = await response.json()
+        // Go server wraps successes as { data: ... } — unwrap automatically
+        const data = json?.data !== undefined ? json.data : json
         return { data, error: null }
     } catch (err) {
         if (err instanceof Error) {

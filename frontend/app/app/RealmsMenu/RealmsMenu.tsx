@@ -4,9 +4,8 @@ import { toast } from 'react-toastify'
 import BasicButton from '@/components/BasicButton'
 import DesktopRealmItem from './DesktopRealmItem'
 import { useRouter } from 'next/navigation'
-import { request } from '@/utils/backend/requests'
-import { createClient } from '@/utils/appwrite/client'
 import revalidate from '@/utils/revalidate'
+import { fetchPlayerCounts } from '../actions'
 
 type Realm = {
     id: string,
@@ -25,8 +24,6 @@ const RealmsMenu:React.FC<RealmsMenuProps> = ({ realms, errorMessage }) => {
     const [selectedRealm, setSelectedRealm] = useState<Realm | null>(null)
     const [playerCounts, setPlayerCounts] = useState<number[]>([])
     const router = useRouter()
-    const { account } = createClient()
-
     useEffect(() => {
         if (errorMessage) {
             toast.error(errorMessage)
@@ -47,16 +44,9 @@ const RealmsMenu:React.FC<RealmsMenuProps> = ({ realms, errorMessage }) => {
     }
 
     async function getPlayerCounts() {
-        let jwt: string
-        try {
-            const { jwt: token } = await account.createJWT()
-            jwt = token
-        } catch {
-            return
-        }
-        const { data: playerCountData, error: playerCountsError } = await request('/api/v1/player-counts', { realmIds: realms.map((realm: any) => realm.id).join(',') }, jwt)
-        if (playerCountData) {
-            setPlayerCounts(playerCountData.playerCounts)
+        const data = await fetchPlayerCounts(realms.map((r) => r.id))
+        if (data?.playerCounts) {
+            setPlayerCounts(data.playerCounts)
         }
     }
 

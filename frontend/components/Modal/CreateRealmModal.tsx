@@ -4,13 +4,12 @@ import Modal from './Modal'
 import { useModal } from '@/app/hooks/useModal'
 import BasicButton from '../BasicButton'
 import BasicInput from '../BasicInput'
-import { createClient } from '@/utils/appwrite/client'
-import { ID } from 'appwrite'
 import { toast } from 'react-toastify'
-import { useRouter } from 'next/navigation' 
+import { useRouter } from 'next/navigation'
 import revalidate from '@/utils/revalidate'
 import { removeExtraSpaces } from '@/utils/removeExtraSpaces'
 import defaultMap from '@/utils/defaultmap.json'
+import { createRealm } from '@/app/app/actions'
 
 const CreateRealmModal:React.FC = () => {
     
@@ -22,49 +21,23 @@ const CreateRealmModal:React.FC = () => {
 
     const router = useRouter()
 
-    async function createRealm() {
-        const { account, databases } = createClient()
-        let user;
-        try {
-            user = await account.get()
-        } catch {
-            return
-        }
-
-        const uid = user.$id
-
+    async function handleCreateRealm() {
         setLoading(true)
+        const mapData = useDefaultMap
+            ? JSON.stringify(defaultMap)
+            : JSON.stringify({ rooms: [] })
 
-        const realmData: any = {
-            owner_id: uid,
-            name: realmName,
-            share_id: ID.unique(), // Appwrite ID generator for share_id
-            only_owner: false
-        }
-        
-        if (useDefaultMap) {
-            realmData.map_data = JSON.stringify(defaultMap)
+        const { data, error } = await createRealm(realmName, mapData)
+
+        if (error || !data) {
+            toast.error(error ?? 'Failed to create realm')
         } else {
-            realmData.map_data = JSON.stringify({ rooms: [] })
-        }
-
-        try {
-            const document = await databases.createDocument(
-                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
-                process.env.NEXT_PUBLIC_APPWRITE_REALMS_COLLECTION_ID!,
-                ID.unique(),
-                realmData
-            )
-            
             setRealmName('')
             revalidate('/app')
             setModal('None')
             toast.success('Your space has been created!')
-            router.push(`/editor/${document.$id}`)
-        } catch (error: any) {
-            toast.error(error?.message)
+            router.push(`/editor/${data.$id}`)
         }
-
         setLoading(false)
     }
 
@@ -87,7 +60,7 @@ const CreateRealmModal:React.FC = () => {
                     />
                     <label htmlFor="useDefaultMap">Use starter map</label>
                 </div>
-                <BasicButton disabled={realmName.length <= 0 || loading} onClick={createRealm} className='text-lg'>
+                <BasicButton disabled={realmName.length <= 0 || loading} onClick={handleCreateRealm} className='text-lg'>
                     Create
                 </BasicButton>
             </div>

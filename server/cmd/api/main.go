@@ -43,6 +43,7 @@ func main() {
 
 	// ── 5. Database (Appwrite) ──────────────────────────────────────────────
 	database.Connect(cfg.AppwriteEndpoint, cfg.AppwriteProjectID, cfg.AppwriteAPIKey)
+	database.Migrate(cfg.AppwriteDatabaseID, cfg.AppwriteRealmsID, cfg.AppwriteProfilesID)
 
 	// ── 6. Session manager ────────────────────────────────────────────────
 	// In-memory state for all live realms. Thread-safe with RWMutex.

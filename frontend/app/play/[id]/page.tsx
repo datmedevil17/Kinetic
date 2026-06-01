@@ -1,6 +1,6 @@
 import React from 'react'
 import NotFound from '@/app/not-found'
-import { createSessionClient } from '@/utils/appwrite/server'
+import { createSessionClient, createAdminClient } from '@/utils/appwrite/server'
 import { redirect } from 'next/navigation'
 import { getPlayRealmData } from '@/utils/appwrite/getPlayRealmData'
 import PlayClient from '../PlayClient'
@@ -48,20 +48,31 @@ export default async function Play({ params, searchParams }: { params: { id: str
             process.env.NEXT_PUBLIC_APPWRITE_PROFILES_COLLECTION_ID!,
             user.$id
         )
-    } catch (e: any) {
-        profileError = e
+    } catch {
+        // Profile doesn't exist yet — create it with admin client
+        try {
+            const { databases: adminDb } = createAdminClient()
+            profile = await adminDb.createDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_PROFILES_COLLECTION_ID!,
+                user.$id,
+                { skin: '009', visited_realms: [] }
+            )
+        } catch (e: any) {
+            profileError = e
+        }
     }
 
-    // Show not found page if no data is returned
     if (!data || !profile) {
         const message = error?.message || profileError?.message
+        console.error('[play] data:', !!data, 'profile:', !!profile, 'error:', message)
         return <NotFound specialMessage={message}/>
     }
 
     const realm = data
     const map_data = typeof realm.map_data === 'string' ? JSON.parse(realm.map_data) : realm.map_data
 
-    let skin = profile.skin
+    let skin = profile.skin && profile.skin !== 'default' ? profile.skin : '009'
 
     if (searchParams.shareId && realm.owner_id !== user.$id) {
         updateVisitedRealms(searchParams.shareId)

@@ -2,6 +2,7 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/appwrite/sdk-for-go/v4/appwrite"
 )
@@ -24,7 +25,6 @@ func ValidateToken(jwtToken string) (*AppwriteUser, error) {
 		return nil, errors.New("no jwt token provided")
 	}
 
-	// Create a new client instance for this specific user
 	c := appwrite.NewClient(
 		appwrite.WithEndpoint(endpoint),
 		appwrite.WithProject(projectID),
@@ -34,7 +34,7 @@ func ValidateToken(jwtToken string) (*AppwriteUser, error) {
 	acc := appwrite.NewAccount(c)
 	user, err := acc.Get()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("appwrite account.Get failed: %w", err)
 	}
 
 	return &AppwriteUser{

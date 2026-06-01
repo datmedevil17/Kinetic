@@ -10,8 +10,9 @@ export async function generateToken(channelName: string) {
         return null
     }
 
-    const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID!
-    const appCertificate = process.env.APP_CERTIFICATE!
+    const appId = process.env.NEXT_PUBLIC_AGORA_APP_ID
+    const appCertificate = process.env.APP_CERTIFICATE
+    if (!appId || !appCertificate) return null
     const uid = 0
     const role = RtcRole.PUBLISHER
     const expireTime = 3600

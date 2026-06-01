@@ -101,7 +101,7 @@ func (s *Service) JoinRealm(hub *ws.Hub, client *ws.Client, payload ws.JoinRealm
 
 	skin := "009" // default skin
 	if err == nil {
-		if err := skinDoc.Decode(&profile); err == nil && profile.Skin != "" {
+		if err := skinDoc.Decode(&profile); err == nil && profile.Skin != "" && profile.Skin != "default" {
 			skin = profile.Skin
 		}
 	}
