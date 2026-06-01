@@ -1,6 +1,8 @@
 package realm
 
 import (
+	"encoding/json"
+	"os"
 	"strings"
 
 	"github.com/datmedevil/kinetic/server/internal/database"
@@ -59,25 +61,31 @@ func (s *Service) JoinRealm(hub *ws.Hub, client *ws.Client, payload ws.JoinRealm
 
 	// ── Step 2: Fetch realm from DB ─────────────────────────────────────────
 	var realm models.Realm
-	result := database.DB.
-		Select("id, owner_id, share_id, map_data, only_owner").
-		Where("id = ?", payload.RealmID).
-		First(&realm)
+	doc, err := database.Databases.GetDocument(
+		os.Getenv("APPWRITE_DATABASE_ID"),
+		os.Getenv("APPWRITE_REALMS_COLLECTION_ID"),
+		payload.RealmID,
+	)
 
-	if result.Error != nil {
+	if err != nil {
 		rejectJoin("Realm not found.")
 		return
 	}
 
+	if err := doc.Decode(&realm); err != nil {
+		rejectJoin("Failed to decode realm data.")
+		return
+	}
+
 	// ── Step 3: Access validation ───────────────────────────────────────────
-	isOwner := strings.EqualFold(realm.OwnerID.String(), client.UID)
+	isOwner := strings.EqualFold(realm.OwnerID, client.UID)
 
 	if !isOwner {
 		if realm.OnlyOwner {
 			rejectJoin("This realm is private right now. Come back later!")
 			return
 		}
-		if realm.ShareID.String() != payload.ShareID {
+		if realm.ShareID != payload.ShareID {
 			rejectJoin("The share link has been changed.")
 			return
 		}
@@ -85,19 +93,29 @@ func (s *Service) JoinRealm(hub *ws.Hub, client *ws.Client, payload ws.JoinRealm
 
 	// ── Step 4: Fetch player profile (skin) ─────────────────────────────────
 	var profile models.Profile
-	skinResult := database.DB.
-		Select("skin").
-		Where("id = ?", client.UID).
-		First(&profile)
+	skinDoc, err := database.Databases.GetDocument(
+		os.Getenv("APPWRITE_DATABASE_ID"),
+		os.Getenv("APPWRITE_PROFILES_COLLECTION_ID"),
+		client.UID,
+	)
 
 	skin := "009" // default skin
-	if skinResult.Error == nil && profile.Skin != "" {
-		skin = profile.Skin
+	if err == nil {
+		if err := skinDoc.Decode(&profile); err == nil && profile.Skin != "" {
+			skin = profile.Skin
+		}
 	}
 
-	// ── Step 5: Create session if not yet running ────────────────────────────
+	// ── Step 5: Parse Map Data ───────────────────────────────────────────────
+	var mapData models.MapData
+	if err := json.Unmarshal([]byte(realm.MapData), &mapData); err != nil {
+		rejectJoin("Failed to parse map data.")
+		return
+	}
+
+	// ── Step 6: Create session if not yet running ────────────────────────────
 	if s.manager.GetSession(payload.RealmID) == nil {
-		s.manager.CreateSession(payload.RealmID, realm.MapData)
+		s.manager.CreateSession(payload.RealmID, mapData)
 	}
 
 	// ── Step 6: Kick player from any existing session (multi-tab / re-login) ─

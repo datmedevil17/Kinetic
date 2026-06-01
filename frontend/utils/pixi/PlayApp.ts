@@ -5,7 +5,6 @@ import * as PIXI from 'pixi.js'
 import { server } from '../backend/server'
 import { defaultSkin } from './Player/skins'
 import signal from '../signal'
-import { createClient } from '../supabase/client'
 import { gsap } from 'gsap'
 
 export class PlayApp extends App {
@@ -427,11 +426,7 @@ export class PlayApp extends App {
     }
 
     private displayInitialChatMessage = async () => {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
-        let channelName = ''
-
+        const channelName = ''
         signal.emit('newRoomChat', {
             name: this.realmData.rooms[this.currentRoomIndex].name,
             channelId: channelName

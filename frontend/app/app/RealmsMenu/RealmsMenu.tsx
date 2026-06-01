@@ -5,7 +5,7 @@ import BasicButton from '@/components/BasicButton'
 import DesktopRealmItem from './DesktopRealmItem'
 import { useRouter } from 'next/navigation'
 import { request } from '@/utils/backend/requests'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/utils/appwrite/client'
 import revalidate from '@/utils/revalidate'
 
 type Realm = {
@@ -25,7 +25,7 @@ const RealmsMenu:React.FC<RealmsMenuProps> = ({ realms, errorMessage }) => {
     const [selectedRealm, setSelectedRealm] = useState<Realm | null>(null)
     const [playerCounts, setPlayerCounts] = useState<number[]>([])
     const router = useRouter()
-    const supabase = createClient()
+    const { account } = createClient()
 
     useEffect(() => {
         if (errorMessage) {
@@ -47,10 +47,14 @@ const RealmsMenu:React.FC<RealmsMenuProps> = ({ realms, errorMessage }) => {
     }
 
     async function getPlayerCounts() {
-        // get session
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) return
-        const { data: playerCountData, error: playerCountsError } = await request('/getPlayerCounts', { realmIds: realms.map((realm: any) => realm.id)}, session.access_token)
+        let jwt: string
+        try {
+            const { jwt: token } = await account.createJWT()
+            jwt = token
+        } catch {
+            return
+        }
+        const { data: playerCountData, error: playerCountsError } = await request('/api/v1/player-counts', { realmIds: realms.map((realm: any) => realm.id).join(',') }, jwt)
         if (playerCountData) {
             setPlayerCounts(playerCountData.playerCounts)
         }

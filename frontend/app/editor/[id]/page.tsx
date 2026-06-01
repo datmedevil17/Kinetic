@@ -1,24 +1,35 @@
 import NotFound from '@/app/not-found'
-import { createClient } from '@/utils/supabase/server'
+import { createSessionClient } from '@/utils/appwrite/server'
 import { redirect } from 'next/navigation'
 import Editor from '../Editor'
 
 export default async function RealmEditor({ params }: { params: { id: string } }) {
 
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { account, databases } = await createSessionClient()
 
-    if (!user) {
+    let user: any
+    try {
+        user = await account.get()
+    } catch {
         return redirect('/signin')
     }
 
-    const { data, error } = await supabase.from('realms').select('id, name, owner_id, map_data').eq('id', params.id).single()
-    // Show not found page if we are not the owner or no data is returned
-    if (!data) {
+    let data: any
+    try {
+        data = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_REALMS_COLLECTION_ID!,
+            params.id
+        )
+    } catch {
         return <NotFound />
     }
-    const realm = data
-    const map_data = realm.map_data 
+
+    if (data.owner_id !== user.$id) {
+        return <NotFound />
+    }
+
+    const map_data = data.map_data
 
     return (
         <div>

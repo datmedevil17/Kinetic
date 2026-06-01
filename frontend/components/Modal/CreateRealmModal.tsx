@@ -4,7 +4,8 @@ import Modal from './Modal'
 import { useModal } from '@/app/hooks/useModal'
 import BasicButton from '../BasicButton'
 import BasicInput from '../BasicInput'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/utils/appwrite/client'
+import { ID } from 'appwrite'
 import { toast } from 'react-toastify'
 import { useRouter } from 'next/navigation' 
 import revalidate from '@/utils/revalidate'
@@ -22,37 +23,46 @@ const CreateRealmModal:React.FC = () => {
     const router = useRouter()
 
     async function createRealm() {
-        const supabase = createClient()
-        const { data: { user } } = await supabase.auth.getUser()
-
-        if (!user) {
+        const { account, databases } = createClient()
+        let user;
+        try {
+            user = await account.get()
+        } catch {
             return
         }
 
-        const uid = user.id
+        const uid = user.$id
 
         setLoading(true)
 
         const realmData: any = {
             owner_id: uid,
             name: realmName,
+            share_id: ID.unique(), // Appwrite ID generator for share_id
+            only_owner: false
         }
+        
         if (useDefaultMap) {
-            realmData.map_data = defaultMap
+            realmData.map_data = JSON.stringify(defaultMap)
+        } else {
+            realmData.map_data = JSON.stringify({ rooms: [] })
         }
 
-        const { data, error } = await supabase.from('realms').insert(realmData).select()
-
-        if (error) {
-            toast.error(error?.message)
-        } 
-
-        if (data) {
+        try {
+            const document = await databases.createDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_REALMS_COLLECTION_ID!,
+                ID.unique(),
+                realmData
+            )
+            
             setRealmName('')
             revalidate('/app')
             setModal('None')
             toast.success('Your space has been created!')
-            router.push(`/editor/${data[0].id}`)
+            router.push(`/editor/${document.$id}`)
+        } catch (error: any) {
+            toast.error(error?.message)
         }
 
         setLoading(false)

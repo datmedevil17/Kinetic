@@ -1,4 +1,4 @@
-import { createClient } from '../supabase/client'
+import { createClient } from '../appwrite/client'
 import { request } from './requests'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,9 +38,9 @@ class Server {
 
     // ── connect ───────────────────────────────────────────────────────────────
     // Mirrors: socket.io connect + joinRealm emit
-    // Auth: browser WebSocket API cannot set custom headers, so the Supabase
-    //       JWT is passed as a query parameter: /ws?token=<access_token>
-    //       The Go server validates it via Supabase Auth.WithToken().GetUser()
+    // Auth: browser WebSocket API cannot set custom headers, so the Appwrite
+    //       JWT is passed as a query parameter: /ws?token=<jwt>
+    //       The Go server validates it via client.SetJWT() and account.Get()
     public async connect(
         realmId: string,
         uid: string,
@@ -132,12 +132,14 @@ class Server {
     // ── REST helpers ──────────────────────────────────────────────────────────
     // Path changed: /getPlayersInRoom → /api/v1/players-in-room
     public async getPlayersInRoom(roomIndex: number) {
-        const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
+        const { account } = createClient()
+        let session;
+        try {
+            session = await account.createJWT()
+        } catch {
             return { data: null, error: { message: 'No session provided' } }
         }
-        return request('/api/v1/players-in-room', { roomIndex }, session.access_token)
+        return request('/api/v1/players-in-room', { roomIndex }, session.jwt)
     }
 
     // ── internal dispatcher ───────────────────────────────────────────────────

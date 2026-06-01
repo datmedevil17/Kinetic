@@ -1,46 +1,79 @@
 import React from 'react'
 import NotFound from '@/app/not-found'
-import { createClient } from '@/utils/supabase/server'
+import { createSessionClient } from '@/utils/appwrite/server'
 import { redirect } from 'next/navigation'
-import { getPlayRealmData } from '@/utils/supabase/getPlayRealmData'
+import { getPlayRealmData } from '@/utils/appwrite/getPlayRealmData'
 import PlayClient from '../PlayClient'
-import { updateVisitedRealms } from '@/utils/supabase/updateVisitedRealms'
+import { updateVisitedRealms } from '@/utils/appwrite/updateVisitedRealms'
 import { formatEmailToName } from '@/utils/formatEmailToName'
 
 export default async function Play({ params, searchParams }: { params: { id: string }, searchParams: { shareId: string } }) {
 
-    const supabase = createClient()
-    const { data: { session } } = await supabase.auth.getSession()
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (!session || !user) {
+    const { account, databases } = await createSessionClient()
+    let user;
+    try {
+        user = await account.get()
+    } catch {
         return redirect('/signin')
     }
-    const { data, error } = !searchParams.shareId ? await supabase.from('realms').select('map_data, owner_id, name').eq('id', params.id).single() : await getPlayRealmData(session.access_token, searchParams.shareId)
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('skin').eq('id', user.id).single()
+    
+    let jwt;
+    try {
+        const session = await account.createJWT()
+        jwt = session.jwt
+    } catch {
+        return redirect('/signin')
+    }
+
+    let data, profile, error: any, profileError: any;
+    try {
+        if (!searchParams.shareId) {
+            data = await databases.getDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_REALMS_COLLECTION_ID!,
+                params.id
+            )
+        } else {
+            const res = await getPlayRealmData(searchParams.shareId)
+            data = res.data
+            error = res.error
+        }
+    } catch (e: any) {
+        error = e
+    }
+
+    try {
+        profile = await databases.getDocument(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+            process.env.NEXT_PUBLIC_APPWRITE_PROFILES_COLLECTION_ID!,
+            user.$id
+        )
+    } catch (e: any) {
+        profileError = e
+    }
+
     // Show not found page if no data is returned
     if (!data || !profile) {
         const message = error?.message || profileError?.message
-
         return <NotFound specialMessage={message}/>
     }
 
     const realm = data
-    const map_data = realm.map_data
+    const map_data = typeof realm.map_data === 'string' ? JSON.parse(realm.map_data) : realm.map_data
 
     let skin = profile.skin
 
-    if (searchParams.shareId && realm.owner_id !== user.id) {
-        updateVisitedRealms(session.access_token, searchParams.shareId)
+    if (searchParams.shareId && realm.owner_id !== user.$id) {
+        updateVisitedRealms(searchParams.shareId)
     }
 
     return (
         <PlayClient 
             mapData={map_data} 
-            username={formatEmailToName(user.user_metadata.email)} 
-            access_token={session.access_token} 
+            username={formatEmailToName(user.email)} 
+            access_token={jwt} 
             realmId={params.id} 
-            uid={user.id} 
+            uid={user.$id} 
             shareId={searchParams.shareId || ''} 
             initialSkin={skin}
             name={realm.name}

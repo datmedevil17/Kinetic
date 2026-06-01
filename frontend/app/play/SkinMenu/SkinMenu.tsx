@@ -6,7 +6,7 @@ import { ArrowFatLeft, ArrowFatRight } from '@phosphor-icons/react'
 import BasicLoadingButton from '@/components/BasicLoadingButton'
 import { skins, defaultSkin } from '@/utils/pixi/Player/skins'
 import signal from '@/utils/signal'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/utils/appwrite/client'
 import revalidate from '@/utils/revalidate'
 import { toast } from 'react-toastify'
 
@@ -21,7 +21,7 @@ const SkinMenu:React.FC<SkinMenuProps> = () => {
     const [skinIndex, setSkinIndex] = useState<number>(skins.indexOf(defaultSkin))
     const [loading, setLoading] = useState(false)
 
-    const supabase = createClient()
+    const { account, databases } = createClient()
 
     function decrement() {
         setSkinIndex((prevIndex) => (prevIndex - 1 + skins.length) % skins.length)
@@ -45,17 +45,22 @@ const SkinMenu:React.FC<SkinMenuProps> = () => {
 
     async function switchSkins() {
         const newSkin = skins[skinIndex]
-        // update profile on supabase with different skin
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        let user: any
+        try {
+            user = await account.get()
+        } catch {
+            return
+        }
 
-        const { error } = await supabase
-                .from('profiles')
-                .update({ skin: newSkin })
-                .eq('id', user.id)
-
-        if (error) {
-            toast.error(error.message)
+        try {
+            await databases.updateDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_PROFILES_COLLECTION_ID!,
+                user.$id,
+                { skin: newSkin }
+            )
+        } catch (e: any) {
+            toast.error(e?.message ?? 'Failed to update skin')
             return
         }
 

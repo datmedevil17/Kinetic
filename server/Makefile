@@ -1,6 +1,6 @@
 ## ── Dev ─────────────────────────────────────────────────────────────────────
 run:
-	go run ./cmd/server
+	go run ./cmd/api
 
 # Hot-reload dev server (install: go install github.com/air-verse/air@latest)
 dev:
@@ -8,7 +8,7 @@ dev:
 
 ## ── Build ────────────────────────────────────────────────────────────────────
 build:
-	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/kinetic ./cmd/server
+	CGO_ENABLED=0 go build -ldflags="-w -s" -o bin/kinetic ./cmd/api
 
 ## ── Quality ──────────────────────────────────────────────────────────────────
 lint:

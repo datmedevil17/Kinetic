@@ -1,5 +1,6 @@
 'use client'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/utils/appwrite/client'
+import { OAuthProvider } from 'appwrite'
 import GoogleSignInButton from './GoogleSignInButton'
 import Link from 'next/link'
 import { ArrowLeft, Shield, Lock, Users } from '@phosphor-icons/react'
@@ -7,13 +8,13 @@ import { ArrowLeft, Shield, Lock, Users } from '@phosphor-icons/react'
 export default function Login() {
 
     const signInWithGoogle = async () => {
-        const supabase = createClient()
-        const { data, error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: process.env.NEXT_PUBLIC_BASE_URL + '/auth/callback'
-            }
-        })
+        const { account } = createClient()
+        // Appwrite OAuth redirects
+        account.createOAuth2Token(
+            OAuthProvider.Google,
+            process.env.NEXT_PUBLIC_BASE_URL + '/auth/callback',
+            process.env.NEXT_PUBLIC_BASE_URL + '/signin'
+        )
     }
 
   return (

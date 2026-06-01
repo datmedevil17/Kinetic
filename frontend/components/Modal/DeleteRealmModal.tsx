@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react'
 import Modal from './Modal'
 import { useModal } from '@/app/hooks/useModal'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/utils/appwrite/client'
 import { toast } from 'react-toastify'
 import revalidate from '@/utils/revalidate'
 import BasicInput from '../BasicInput'
@@ -19,19 +19,20 @@ const DeleteRealmModal:React.FC<DeleteRealmModalProps> = () => {
     const [input, setInput] = useState<string>('')
 
     const onClickDelete = async () => {
-        const supabase = createClient()
+        const { databases } = createClient()
         setLoading(true)
 
-        const { error } = await supabase.from('realms').delete().eq('id', realmToDelete.id) 
-
-        if (error) {
-            setLoading(false)
-            toast.error(error.message)
-        }
-
-        if (!error) {
+        try {
+            await databases.deleteDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_REALMS_COLLECTION_ID!,
+                realmToDelete.id
+            )
             revalidate('/app')
             window.location.reload()
+        } catch (error: any) {
+            setLoading(false)
+            toast.error(error.message)
         }
     }
 

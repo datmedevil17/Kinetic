@@ -1,19 +1,34 @@
-import { createClient } from "@/utils/supabase/server";
+import { Client, Account } from "node-appwrite";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
-  // The `/auth/callback` route is required for the server-side auth flow implemented
-  // by the SSR package. It exchanges an auth code for the user's session.
-  // https://supabase.com/docs/guides/auth/server-side/nextjs
-  const requestUrl = new URL(request.url);
-  const code = requestUrl.searchParams.get("code");
-  const origin = requestUrl.origin;
+    const url = new URL(request.url);
+    const userId = url.searchParams.get("userId");
+    const secret = url.searchParams.get("secret");
 
-  if (code) {
-    const supabase = createClient();
-    await supabase.auth.exchangeCodeForSession(code);
-  }
+    if (!userId || !secret) {
+        return NextResponse.redirect(new URL("/signin", request.url));
+    }
 
-  // URL to redirect to after sign up process completes
-  return NextResponse.redirect(`${origin}/app`);
+    try {
+        const client = new Client()
+            .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
+            .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!);
+
+        const account = new Account(client);
+        const session = await account.createSession(userId, secret);
+
+        cookies().set("appwrite-session", session.secret, {
+            path: "/",
+            httpOnly: true,
+            sameSite: "strict",
+            secure: process.env.NODE_ENV === "production",
+        });
+
+        return NextResponse.redirect(new URL("/app", request.url));
+    } catch (e) {
+        console.error("[auth/callback]", e);
+        return NextResponse.redirect(new URL("/signin", request.url));
+    }
 }

@@ -1,15 +1,19 @@
 import React from 'react'
-import { createClient } from '@/utils/supabase/server'
+import { createSessionClient } from '@/utils/appwrite/server'
 import { NavbarChild } from './NavbarChild'
 import { formatEmailToName } from '@/utils/formatEmailToName'
 
 export const Navbar:React.FC = async () => {
 
-    const supabase = createClient()
-
-    const { data: { user } } = await supabase.auth.getUser()
+    const { account } = await createSessionClient()
+    let user = null;
+    try {
+        user = await account.get()
+    } catch {
+        // user not logged in
+    }
 
     return (
-        <NavbarChild name={formatEmailToName(user?.user_metadata.email)} avatar_url={user?.user_metadata.avatar_url}/>
+        <NavbarChild name={user ? formatEmailToName(user.email) : undefined} avatar_url={undefined}/>
     )
 }

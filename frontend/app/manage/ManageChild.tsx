@@ -2,7 +2,7 @@
 import React, { useState } from 'react'
 import Dropdown from '@/components/Dropdown'
 import BasicButton from '@/components/BasicButton'
-import { createClient } from '@/utils/supabase/client'
+import { createClient } from '@/utils/appwrite/client'
 import { toast } from 'react-toastify'
 import revalidate from '@/utils/revalidate'
 import { useModal } from '../hooks/useModal'
@@ -27,7 +27,7 @@ const ManageChild:React.FC<ManageChildProps> = ({ realmId, startingShareId, star
     const [name, setName] = useState(startingName)
     const { setModal, setLoadingText } = useModal()
 
-    const supabase = createClient()
+    const { databases } = createClient()
 
     async function save() {
         if (name.trim() === '') {
@@ -38,18 +38,19 @@ const ManageChild:React.FC<ManageChildProps> = ({ realmId, startingShareId, star
         setModal('Loading')
         setLoadingText('Saving...')
 
-        const { error } = await supabase
-            .from('realms')
-            .update({ 
+        try {
+            await databases.updateDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_REALMS_COLLECTION_ID!,
+                realmId,
+                { 
                     only_owner: onlyOwner,
                     name: name,
-                })
-            .eq('id', realmId)
-
-        if (error) {
-            toast.error(error.message)
-        } else {
+                }
+            )
             toast.success('Saved!')
+        } catch (error: any) {
+            toast.error(error.message)
         }
 
         revalidate('/manage/[id]')
@@ -67,20 +68,21 @@ const ManageChild:React.FC<ManageChildProps> = ({ realmId, startingShareId, star
         setLoadingText('Generating new link...')
 
         const newShareId = uuidv4()
-        const { error } = await supabase
-            .from('realms')
-            .update({ 
-                share_id: newShareId
-                })
-            .eq('id', realmId)
-
-        if (error) {
-            toast.error(error.message)
-        } else {
+        try {
+            await databases.updateDocument(
+                process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID!,
+                process.env.NEXT_PUBLIC_APPWRITE_REALMS_COLLECTION_ID!,
+                realmId,
+                { 
+                    share_id: newShareId
+                }
+            )
             setShareId(newShareId)
             const link = process.env.NEXT_PUBLIC_BASE_URL + '/play/' + realmId + '?shareId=' + newShareId
             navigator.clipboard.writeText(link)
             toast.success('New link copied!')
+        } catch (error: any) {
+            toast.error(error.message)
         }
 
         revalidate('/manage/[id]')

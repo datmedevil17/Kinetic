@@ -1,21 +1,18 @@
 'use client'
-import React, { Fragment } from 'react'
+import React, { Fragment, useState, useRef } from 'react'
 import { useModal } from '@/app/hooks/useModal'
 import { Dialog, Transition } from '@headlessui/react'
-import { createClient } from '@/utils/supabase/client'
 import { useRouter } from 'next/navigation'
+import { signOut } from '@/utils/appwrite/signOut'
 
 const AccountDropdown:React.FC = () => {
     const { modal, setModal } = useModal()
     const router = useRouter()
 
     async function handleSignOut() {
+        await signOut()
         setModal('None')
-
-        const supabase = createClient()
-        await supabase.auth.signOut()
-
-        router.push('/signin')
+        router.push('/')
     }
     
     return (
