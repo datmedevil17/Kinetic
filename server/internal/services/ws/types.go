@@ -12,6 +12,7 @@ const (
 	EventTeleport    = "teleport"
 	EventChangedSkin = "changedSkin"
 	EventSendMessage = "sendMessage"
+	EventBoardUpdate = "boardUpdate"
 	EventDisconnect  = "disconnect"
 )
 
@@ -62,6 +63,12 @@ type TeleportPayload struct {
 	X         int `json:"x"`
 	Y         int `json:"y"`
 	RoomIndex int `json:"roomIndex"`
+}
+
+type SendMessagePayload struct {
+	Type     string `json:"type"`               // "global", "local", "direct"
+	TargetID string `json:"targetId,omitempty"` // For direct messages
+	Message  string `json:"message"`
 }
 
 // ─────────────────────────────────────────────

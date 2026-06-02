@@ -1,3 +1,4 @@
+'use client'
 import React, { createContext, useContext, ReactNode, useEffect, useState, useMemo, useRef } from 'react'
 import AgoraRTC, { 
     AgoraRTCProvider, 
@@ -25,11 +26,26 @@ interface VideoChatProviderProps {
 }
 
 export const AgoraVideoChatProvider: React.FC<AgoraVideoChatProviderProps> = ({ children }) => {
+    const [mounted, setMounted] = useState(false)
+
     const client = useMemo(() => {
+        if (typeof window === 'undefined') return null as any
         const newClient = AgoraRTC.createClient({ codec: "vp8", mode: "rtc" })
         AgoraRTC.setLogLevel(4)
         return newClient
     }, [])
+
+    useEffect(() => {
+        setMounted(true)
+    }, [])
+
+    if (!mounted || !client) {
+        return (
+            <VideoChatProvider>
+                {children}
+            </VideoChatProvider>
+        )
+    }
 
     return (
         <AgoraRTCProvider client={client}>

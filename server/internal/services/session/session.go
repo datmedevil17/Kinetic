@@ -217,6 +217,32 @@ func (s *Session) GetAllPlayerIDs() []string {
 	return ids
 }
 
+// GetAllSocketIDs returns all connected socketIDs in the session.
+func (s *Session) GetAllSocketIDs() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	ids := make([]string, 0, len(s.players))
+	for _, p := range s.players {
+		ids = append(ids, p.SocketID)
+	}
+	return ids
+}
+
+// GetSocketIDsInProximity returns all socketIDs of players with the given proximityID.
+func (s *Session) GetSocketIDsInProximity(proximityID string) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	result := make([]string, 0)
+	for _, p := range s.players {
+		if p.ProximityID != nil && *p.ProximityID == proximityID {
+			result = append(result, p.SocketID)
+		}
+	}
+	return result
+}
+
 // ─────────────────────────────────────────
 //  Position index helpers (called with mu held)
 // ─────────────────────────────────────────

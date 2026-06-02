@@ -297,6 +297,7 @@ export class Player {
                 this.currentChannel = tile.privateAreaId
                 videoChat.joinChannel(tile.privateAreaId, this.playApp.uid + this.username, this.playApp.realmId)
                 this.playApp.fadeInTiles(tile.privateAreaId)
+                signal.emit('chatContextUpdate', 'room')
             }
         } else {
             if (this.playApp.proximityId) {
@@ -304,11 +305,13 @@ export class Player {
                     this.currentChannel = this.playApp.proximityId
                     videoChat.joinChannel(this.playApp.proximityId, this.playApp.uid + this.username, this.playApp.realmId)
                     this.playApp.fadeOutTiles()
+                    signal.emit('chatContextUpdate', 'proximity')
                 }
             } else if (this.currentChannel !== 'local') {
                 this.currentChannel = 'local'
                 videoChat.leaveChannel()
                 this.playApp.fadeOutTiles()
+                signal.emit('chatContextUpdate', null)
             }
         }
     }

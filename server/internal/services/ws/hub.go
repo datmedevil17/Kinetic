@@ -120,6 +120,10 @@ func (h *Hub) dispatch(c *Client, data []byte) {
 		// ← stays on hub goroutine: pure in-memory
 		h.handleSendMessage(c, msg.Payload)
 
+	case EventBoardUpdate:
+		// ← stays on hub goroutine: pure in-memory
+		h.handleBoardUpdate(c, msg.Payload)
+
 	default:
 		log.Debug().Str("event", msg.Event).Msg("Unknown event")
 	}
@@ -278,13 +282,13 @@ func (h *Hub) handleChangedSkin(c *Client, raw json.RawMessage) {
 }
 
 func (h *Hub) handleSendMessage(c *Client, raw json.RawMessage) {
-	var message string
-	if err := json.Unmarshal(raw, &message); err != nil {
+	var payload SendMessagePayload
+	if err := json.Unmarshal(raw, &payload); err != nil {
 		return
 	}
 
 	// Validate: non-empty, max 300 chars
-	message = utils.RemoveExtraSpaces(message)
+	message := utils.RemoveExtraSpaces(payload.Message)
 	if message == "" || len(message) > 300 {
 		return
 	}
@@ -299,12 +303,72 @@ func (h *Hub) handleSendMessage(c *Client, raw json.RawMessage) {
 		return
 	}
 
-	h.broadcastToRoom(sess, player.Room,
-		mustBuildMessage(EventReceiveMessage, map[string]string{
-			"uid": c.UID, "message": message,
-		}),
-		c.SocketID,
-	)
+	outMsg := mustBuildMessage(EventReceiveMessage, map[string]string{
+		"uid":     c.UID,
+		"type":    payload.Type,
+		"message": message,
+	})
+
+	switch payload.Type {
+	case "global":
+		socketIDs := sess.GetAllSocketIDs()
+		h.clientsMu.RLock()
+		defer h.clientsMu.RUnlock()
+		for _, sid := range socketIDs {
+			if sid == c.SocketID {
+				continue
+			}
+			if client, ok := h.clients[sid]; ok {
+				client.Send(outMsg)
+			}
+		}
+
+	case "local", "proximity":
+		if player.ProximityID != nil {
+			socketIDs := sess.GetSocketIDsInProximity(*player.ProximityID)
+			h.clientsMu.RLock()
+			defer h.clientsMu.RUnlock()
+			for _, sid := range socketIDs {
+				if sid == c.SocketID {
+					continue
+				}
+				if client, ok := h.clients[sid]; ok {
+					client.Send(outMsg)
+				}
+			}
+		}
+
+	case "room":
+		h.broadcastToRoom(sess, player.Room, outMsg, c.SocketID)
+
+	case "direct":
+		targetPlayer, ok := sess.GetPlayer(payload.TargetID)
+		if ok {
+			h.SendToSocket(targetPlayer.SocketID, outMsg)
+		}
+	}
+}
+
+func (h *Hub) handleBoardUpdate(c *Client, raw json.RawMessage) {
+	sess := h.manager.GetPlayerSession(c.UID)
+	if sess == nil {
+		return
+	}
+
+	// Broadcast board update to everyone in the realm except the sender
+	outMsg := mustBuildMessage(EventBoardUpdate, raw)
+	socketIDs := sess.GetAllSocketIDs()
+
+	h.clientsMu.RLock()
+	defer h.clientsMu.RUnlock()
+	for _, sid := range socketIDs {
+		if sid == c.SocketID {
+			continue
+		}
+		if client, ok := h.clients[sid]; ok {
+			client.Send(outMsg)
+		}
+	}
 }
 
 // ──────────────────────────────────────────

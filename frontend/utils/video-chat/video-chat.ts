@@ -4,7 +4,7 @@ import { createHash } from 'crypto'
 import { generateToken } from './generateToken'
 
 export class VideoChat {
-    private client: IAgoraRTCClient = AgoraRTC.createClient({ codec: "vp8", mode: "rtc" })
+    private client!: IAgoraRTCClient
     private microphoneTrack: IMicrophoneAudioTrack | null = null
     private cameraTrack: ICameraVideoTrack | null = null
     private currentChannel: string = ''
@@ -12,14 +12,18 @@ export class VideoChat {
     private remoteUsers: { [uid: string]: IAgoraRTCRemoteUser } = {}
 
     private channelTimeout: NodeJS.Timeout | null = null
+    private isJoining: boolean = false
 
     constructor() {
-        AgoraRTC.setLogLevel(4)
-        this.client.on('user-published', this.onUserPublished)
-        this.client.on('user-unpublished', this.onUserUnpublished)
-        this.client.on('user-left', this.onUserLeft)
-        this.client.on('user-info-updated', this.onUserInfoUpdated)
-        this.client.on('user-joined', this.onUserJoined)
+        if (typeof window !== 'undefined') {
+            this.client = AgoraRTC.createClient({ codec: "vp8", mode: "rtc" })
+            AgoraRTC.setLogLevel(4)
+            this.client.on('user-published', this.onUserPublished)
+            this.client.on('user-unpublished', this.onUserUnpublished)
+            this.client.on('user-left', this.onUserLeft)
+            this.client.on('user-info-updated', this.onUserInfoUpdated)
+            this.client.on('user-joined', this.onUserJoined)
+        }
     }
 
     private onUserInfoUpdated = (uid: string) => {
@@ -49,6 +53,9 @@ export class VideoChat {
         if (mediaType === 'audio') {
             user.audioTrack?.stop()
         }
+        if (mediaType === 'audio' || mediaType === 'video') {
+            signal.emit('user-info-updated', user)
+        }
     }
 
     public onUserLeft = (user: IAgoraRTCRemoteUser, reason: string) => {
@@ -76,8 +83,6 @@ export class VideoChat {
         return !this.cameraTrack.enabled
     }
 
-    // TODO: Set it up so microphone gets muted and unmuted instead of enabled and disabled
-
     public async toggleMicrophone() {
         if (!this.microphoneTrack) {
             this.microphoneTrack = await AgoraRTC.createMicrophoneAudioTrack()
@@ -88,9 +93,13 @@ export class VideoChat {
 
             return false
         }
-        await this.microphoneTrack.setMuted(!this.microphoneTrack.muted)
+        await this.microphoneTrack.setEnabled(!this.microphoneTrack.enabled)
 
-        return this.microphoneTrack.muted
+        if (this.client.connectionState === 'CONNECTED' && this.microphoneTrack.enabled) {
+            await this.client.publish([this.microphoneTrack])
+        }
+
+        return !this.microphoneTrack.enabled
     }
 
     public playVideoTrackAtElementId(elementId: string) {
@@ -110,24 +119,33 @@ export class VideoChat {
         }
 
         this.channelTimeout = setTimeout(async () => {
-            if (channel === this.currentChannel) return
+            if (channel === this.currentChannel || this.isJoining) return
+
             const uniqueChannelId = this.createUniqueChannelId(realmId, channel)
             const token = await generateToken(uniqueChannelId)
             if (!token) return
 
-            if (this.client.connectionState === 'CONNECTED') {
-                await this.client.leave()
-            }
-            this.resetRemoteUsers()
+            this.isJoining = true
+            try {
+                if (this.client.connectionState === 'CONNECTED') {
+                    await this.client.leave()
+                }
+                this.resetRemoteUsers()
+                this.currentChannel = channel  // set before join so re-entrant calls are blocked
 
-            await this.client.join(process.env.NEXT_PUBLIC_AGORA_APP_ID!, uniqueChannelId, token, uid)
-            this.currentChannel = channel
+                await this.client.join(process.env.NEXT_PUBLIC_AGORA_APP_ID!, uniqueChannelId, token, uid)
 
-            if (this.microphoneTrack && this.microphoneTrack.enabled) {
-                await this.client.publish([this.microphoneTrack])
-            }
-            if (this.cameraTrack && this.cameraTrack.enabled) {
-                await this.client.publish([this.cameraTrack])
+                if (this.microphoneTrack && this.microphoneTrack.enabled) {
+                    await this.client.publish([this.microphoneTrack])
+                }
+                if (this.cameraTrack && this.cameraTrack.enabled) {
+                    await this.client.publish([this.cameraTrack])
+                }
+            } catch (e) {
+                this.currentChannel = ''  // reset so a retry is possible
+                throw e
+            } finally {
+                this.isJoining = false
             }
         }, 1000)
     }
